@@ -1,0 +1,765 @@
+---
+title: "Magic the Gathering"
+subtitle: "An analysis of the \"Modern\" metagame in April 2022"
+author: "Massimo del Prato"
+date: '2022-05-27'
+output:
+  ioslides_presentation: 
+    widescreen: true
+    smaller: true
+  
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include = T,warning = F, message = F, echo = FALSE}
+library(cowplot)
+library(magick)
+library(knitr)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(purrr)
+library(magrittr)
+library(igraph)
+library(tidygraph)
+library(ggraph)
+library(ggrepel)
+library(tidyverse)
+library(RColorBrewer)
+```
+
+## Magic: The Gathering
+
+Magic: The Gathering is a tabletop and digital collectible card game created by Richard Garfield released in 1993 by Wizards of the Coast. Currently is one of the most famous trading card game in the world.
+
+```{r, echo=FALSE, fig.align="center"}
+pic1 = ggdraw() + draw_image("./images/back.jpeg", scale = 1)
+pic1
+```
+
+## The "Modern" format
+
+Modern is one of the most popular format in the competitive setting of Magic: The Gathering.
+
+It allows all cards printed from July 29, 2003 to the present to be played (with some exceptions).
+
+A player must use a deck consisting of at least 60 cards plus 15 cards in the sideboard and it can use at most 4 copies of the same card, except for Basic Land cards that can be played in any number.
+
+The analysis was carried out on all decks that ranked well in competitive tournaments with at least 8 players in the month of April 2022
+
+
+## The dataset
+
+The dataset that I have analyzed is one made by myself.
+I have downloaded 798 deck lists from [mtgtop8](https://www.mtgtop8.com/format?f=MO&meta=236&a=) in txt format and I have arranged them in order to obtain a dataset where each entry has the following variable values:
+
+* The **deck_name**
+* The **player**
+* The **deck_list**
+* The **type**
+
+
+## The dataset
+
+The variable **deck_list** is a nested dataframe where an entry contains the information about 1159 different cards (got by [scryfall](https://scryfall.com/)):
+
+* the **name** of the cards played in the deck
+* the **number** of copies played
+* the **colors** 
+* and other data
+```{r, echo=FALSE, fig.align="center"}
+pic2 = ggdraw() + draw_image("./images/forestjacenivsphere.png", scale = 1)
+pic2
+```
+
+
+## Objectives
+
+* Find out the best players in the month of April and see if they are specialized in specific strategies or if they are versatile.
+
+* Find out the most played cards and see how they relate with each other and with the deck played, and then the same for the less used cards and for signature cards.
+
+
+
+```{r, include = T,warning = F, message = F, echo = FALSE}
+# Load dataset 
+load("complete_Dataset.Rdata")
+df = my_dataframe
+```
+
+
+## Most played Deck type
+
+From an analysis of the played decks, it can be seen that the most played deck type is the **AGGRO**.
+
+```{r, include = T,warning = F, message = F, echo = FALSE}
+all_decks = 
+  df %>%
+  select(deck_name, type)
+all_decks = unique(all_decks)
+
+
+# Toplogie di mazzi giocati
+decks = 
+  df %>%
+  count(type) %>%
+  rename(counts = n) %>%
+  arrange(-counts)
+
+ggplot(data = decks, mapping = aes(x = type, y = counts)) +
+  geom_col(aes(fill = type)) +
+  geom_text(aes(label = paste0(round(counts/798*100, digits = 2), "%")), vjust = -0.3) +
+  theme_minimal()
+```
+
+## Top 10 used decks
+
+Despite the most popular deck type, the most popular deck is **4c Control** of the the type **CONTROL** which is the less popular deck type. 
+
+Anyway more than the 40% of the 10 most played decks is an **AGGRO** deck.
+
+```{r, include = T,warning = F, message = F, echo = FALSE}
+# Top 10 played decks
+
+top_decks = 
+  my_dataframe %>%
+  count(deck_name) %>%
+  arrange(-n) %>%
+  rename("played" = n)
+
+
+top10 = head(top_decks, 10)
+
+
+t = sum(top10$played)
+
+df2 = top10 %>% 
+  mutate(csum = rev(cumsum(rev(played))), 
+         pos = played/2 + lead(csum, 1),
+         pos = if_else(is.na(pos), played/2, pos))
+
+ggplot(top10, aes(x = "" , y = played, fill = fct_inorder(deck_name))) +
+  geom_col(width = 1, color = 1) +
+  coord_polar(theta = "y") +
+  scale_fill_brewer(palette = "Paired") +
+  geom_label_repel(data = df2,
+                   aes(y = pos, label = paste0((round(played/t*100, digit = 2)), "%")),
+                   size = 4.5, nudge_x = 1, show.legend = FALSE) +
+  guides(fill = guide_legend(title = "Top 10 played Decks")) +
+  theme_void()
+
+```
+
+
+##  Who are the best players?
+
+The best players are the players that figure out more than once in the dataframe. This is due to the fact that they have obtained a good result in more than a tournament in April. 
+
+Apparently it was not easy to get more than a good result in April, as a matter of fact only 59 players out of 729 got more than one good result. And of these 59 only 10 got three.
+```{r, include = T,warning = F, message = F, echo = FALSE}
+# Players and their number of results
+
+players = 
+  df %>%
+  count(player) %>%
+  arrange(-n) %>%
+  rename(good_results = n)
+
+ggplot(data = players, aes(x = good_results)) + 
+  geom_bar() +
+  geom_text(stat = "count", aes(label = ..count..), vjust = -0.3) +
+  theme_minimal()
+```
+
+
+##  What do the best players play?
+
+Now let's move our focus to the players who have more than one result.
+
+What shown previously is confirmed: they generally prefer using **AGGRO** decks but the most popular deck is **4c CONTROL**
+
+```{r, include = T,warning = F, message = F, echo = FALSE}
+# The best players: players who appear twice in the dataset
+best_players_2 = 
+  df %>%
+  count(player) %>%
+  filter(n > 2) %>%
+  arrange(-n)
+
+best_players_1 = 
+  df %>%
+  count(player) %>%
+  filter(n > 1) %>%
+  arrange(-n)
+
+
+
+# Deck played by the good players (>1)
+best_player_decks_1 = 
+  best_players_1 %>%
+  inner_join(df, by = "player") %>%
+  select(-n)
+
+# Deck played by the best players (>2)
+best_player_decks_2 = 
+  best_players_2 %>%
+  inner_join(df, by = "player") %>%
+  select(-n)
+  
+
+ggplot(data = best_player_decks_1) + 
+  geom_bar(mapping = aes(x = type, fill = deck_name)) + 
+  theme_classic()
+```
+
+
+## How specialized are the top players in terms of deck types?
+
+Here I have considered the 10 players with three results.
+
+The relation between players must be interpreted as follow: x has played the same deck type than y.
+
+```{r, include = T,warning = F, message = F, echo = FALSE}
+# Deck types played by the best players
+bp_types = 
+  best_player_decks_2 %>%
+  select(-deck_list, -deck_name) 
+  
+bpt1 = unique(bp_types)
+
+# Copy to obtain the links
+bpt2 = bpt1
+
+# Join to see when the top players plays the same deck type
+bpt3 = 
+  inner_join(bpt1, bpt2, by = "type") %>%
+  filter(player.x != player.y) %>%
+  rename(from = player.x, to = player.y)
+
+# Remove the "symmetric" duplicate
+bpt3 = bpt3[, c(1, 3, 2)]
+bpt3[-3] = t(apply(bpt3[-3], 1, sort))
+bpt3 = unique(bpt3)
+
+
+# The graph
+player_graph = tbl_graph(nodes = best_players_2, 
+                         edges = bpt3,
+                         directed = FALSE, 
+                         node_key = "player")
+
+player_lay = layout_components(player_graph)
+
+set_graph_style()
+player_graph %>%
+  activate(nodes) %>%
+  mutate(degree = degree(player_graph)) %>%
+ggraph(layout = player_lay) +
+  geom_edge_link(aes(color = type)) + 
+  geom_node_point(aes(size = degree, alpha = degree)) + 
+  geom_node_text(aes(label = player), repel = TRUE)
+
+#degree(player_graph)
+```
+
+## How specialized are thr top players in terms of deck types?
+Some interesting results:
+
+
+* **Richard_Neal** has played two deck types.
+* **Bosko_Milakovic** is the only one who managed to use all the three deck types. So I will say he's the most versatile player.
+* All the other players are specialized on a single deck type.
+
+
+So the tendency is to be specialized in a single deck type.
+
+## How specialized are thr top players in terms of decks?
+
+Speaking about the single decks, I have analyzed all the player with more than one result.
+
+Again the relation must be interpreted as: x has played the same deck as y.
+
+
+```{r, include = T,warning = F, message = F, echo = FALSE}
+bp_decks = 
+  best_player_decks_1 %>%
+  select(-deck_list, -type) 
+  
+
+nodes = 
+  bp_decks %>%
+  group_by(player) %>%
+  summarise(n_of_played_decks = n_distinct(deck_name))
+
+
+
+p1 = bp_decks
+p2 = p1
+p3 = 
+  inner_join(p1, p2, by = "deck_name") %>%
+  filter(player.x != player.y)
+
+# Remove the "symmetric" duplicate
+p3 = p3[, c(1, 3, 2)]
+p3[-3] = t(apply(p3[-3], 1, sort))
+p3 = unique(p3)
+
+edges = 
+  p3 %>%
+  rename(from = player.x, to = player.y) 
+
+deck_graph = tbl_graph(nodes = nodes, 
+                       edges = edges, 
+                       directed = FALSE,
+                       node_key = "player")
+
+deck_lay = layout_nicely(deck_graph)
+
+set_graph_style()
+deck_graph %>%
+  activate(nodes) %>%
+  mutate(deg = centrality_degree()) %>%
+ggraph(layout = deck_lay) + 
+  geom_edge_link(aes(color = deck_name), show.legend = F) + 
+  geom_node_point(aes(size = n_of_played_decks, color = deg)) + 
+  geom_node_text(aes(label = ifelse(n_of_played_decks > 2 | deg > 18, player, NA)), repel = TRUE)
+
+
+```
+
+
+## How specialized are thr top players in terms of decks?
+
+* There are only two players who have played three different decks: **Bosko_Milakovic** and **Ryan_Gassaway**
+* **Bosko_Milakovic** is not only the most versatile player but he's also the most creative one. In fact he has played three decks that none of the other best players have played.
+* **Jesse_James_Adams** is the player with the highest number of links as he has played the two most popular decks: **4c Control** and **UR Aggro**.
+
+In term of different decks (that may be different but belong to the same type), the players are a bit less specialized with a good number of them which has played different deck.
+
+
+
+```{r, include = T,warning = F, message = F, echo = FALSE}
+# Move the focus on cards
+
+load("./All mtg DataBase/allCardsDB.Rdata")
+
+ac = allCards
+
+card_pull =
+  my_dataframe %>%
+  unnest(deck_list)
+
+
+onlyCards = 
+  card_pull %>%
+  select(-player, type) %>%
+  filter(main_type != "Token Creature")
+
+# All the single cards that are used in the analyzed decks 
+# together with their information
+sin = 
+  onlyCards %>%
+  count(name) %>%
+  select(-n) %>%
+  inner_join(ac, by = "name")
+
+
+
+# The number fo different cards in the dataset
+n_of_different_cards = nrow(sin)
+
+# All the entry of the cards
+total_list = 
+  onlyCards %>%
+  group_by(name) %>%
+  arrange(name, by_group = TRUE) 
+
+
+c_list = total_list %>%
+  select(-deck_name, -use, -number)
+
+
+# Cards ordered by the most played ones
+most_used_cards =
+  total_list %>%
+  summarise(qnt = sum(number)) %>%
+  arrange(-qnt) %>%
+  inner_join(sin, by = "name") 
+
+
+# Non-land cards ordered by the most played ones
+most_nonLands = 
+  most_used_cards %>%
+  filter(main_type != "Land") %>%
+  filter(main_type != "Basic Land") %>%
+  filter(main_type != "Legendary Land") %>%
+  filter(main_type != "Enchantment Land") %>%
+  filter(main_type != "Basic Snow Land")
+```
+
+
+```{r, include = T,warning = F, message = F, echo = FALSE}
+# Extracting the most 50 used cards
+top_cards =
+  head(most_nonLands, 50) %>%
+  rename(color_identity = colors)
+ 
+
+# Extracting the less used cards = cards which appear in a single copy in the dataset
+worst_cards =
+  most_nonLands %>%
+  filter(qnt == 1) %>%
+  rename(color_identity = colors)
+
+
+top_cards$name = factor(top_cards$name,
+                 levels = top_cards$name[order(top_cards$qnt, decreasing = FALSE)])
+
+
+```
+
+
+```{r, include = T,warning = F, message = F, echo = FALSE}
+# Modify the color_identity variable for the top cards
+tc = 
+  top_cards %>%
+  select(name, qnt, color_identity)
+
+class(tc$color_identity) =  "character"
+
+tc$color_identity = gsub("\"", "", as.character(tc$color_identity) )
+
+
+tc$color_identity[tc$color_identity == "list()"] = "N"
+tc$color_identity[tc$color_identity != "R" & 
+                  tc$color_identity != "U" &
+                  tc$color_identity != "G" &
+                  tc$color_identity != "W" & 
+                  tc$color_identity != "B" &
+                  tc$color_identity !="N"] = "M"
+
+```
+
+
+
+## Which are the most played cards?
+This graph shows the 20 most played non land cards; quite surprisingly there are no black cards between them. 
+
+```{r, include = T,warning = F, message = F, echo = FALSE}
+
+tc1 = head(tc, 20)
+
+# Plot the 20 most used cards along with their quantity and color 
+ggplot(tc1, aes(x = qnt, y = name, fill = color_identity, width = 0.85)) +
+  geom_bar(color = "#343334", stat = "identity") +
+  scale_fill_manual("card color", values = c("R" = "#f90000",
+                                             "U" = "#1027ec",
+                                             "G" = "#31c21d",
+                                             "W" = "#ffffff", 
+                                             "B" = "#000000", 
+                                             "M" = "#ff9add",
+                                             "N" = "#a79da4")) + 
+  theme_minimal()
+
+
+```
+
+## Which are the most played cards?
+
+To find the first black cards we must look at the 25th position: **Thoughtseize** , anyway it is the only one black card in the top 40. 
+
+
+```{r, include = T,warning = F, message = F, echo = FALSE}
+
+tc2 = head(tc, 40)
+
+# Plot the 40 most used cards along with their quantity and color 
+ggplot(tc2, aes(x = qnt, y = name, fill = color_identity, width = 0.85)) +
+  geom_bar(color = "#343334", stat = "identity") +
+  scale_fill_manual("card color", values = c("R" = "#f90000",
+                                             "U" = "#1027ec",
+                                             "G" = "#31c21d",
+                                             "W" = "#ffffff", 
+                                             "B" = "#000000", 
+                                             "M" = "#ff9add",
+                                             "N" = "#a79da4")) + 
+  theme_minimal()
+
+```
+
+## Correlation between the top 20 used cards
+
+How often the top cards are used together?
+
+It results that almost all the top cards are used together at least in one the deck.  The only exception is **Shardless Agent** which has non links with 9 of the other top cards.
+ 
+```{r, include = T,warning = F, message = F, echo = FALSE}
+card_list = 
+  total_list %>%
+  select(deck_name, name)
+
+# Selecting the top 10 popular cards
+top20 = head(most_nonLands, 20)
+
+# Get deck_name for the most popular cards
+l = 
+  inner_join(card_list, top20, by = "name") %>%
+  select(deck_name, name)
+
+# Card and deck names
+l1 = unique(l)
+l1 = l1[, c(2, 1)]
+
+l2 =
+  l1 %>%
+  group_by(deck_name)
+  
+# Join to see in how many decks the top cards are used together
+l3 = 
+  inner_join(l1, l2, by = "deck_name") %>%
+  filter(name.x != name.y) %>%
+  rename(from = name.x, to = name.y) 
+  
+
+# Remove the "symmetric" duplicates 
+l3 = l3[, c(1, 3, 2)]
+l3[-3] = t(apply(l3[-3], 1, sort))
+l3 = l3 %>%
+  select(-deck_name)
+
+l3 = unique(l3) 
+
+
+# Vertices
+vert =
+  top20 %>%
+  select(name)
+
+
+# Create an undirected graph to study the correlation
+
+
+card_graph = tbl_graph(nodes = vert,
+                       edges = l3,
+                       directed = FALSE,
+                       node_key = "name"
+                       )
+ 
+
+card_lay = layout_nicely(card_graph) 
+
+set_graph_style()
+card_graph %>%
+  activate(nodes) %>%
+  mutate(degree = degree(card_graph)) %>%
+ggraph(layout = card_lay) + 
+  geom_edge_link(color = "grey") + 
+  geom_node_point(aes(size = degree, alpha = degree)) + 
+  geom_node_text(aes(label = name), repel = TRUE)
+ 
+
+# Get the Degree Centrality to see which is the top cards which is more often use with other top cards
+c = centr_degree(card_graph)
+```
+
+
+## How decks exploit the top 20 cards
+
+Apparently the use of the top cards is bind to the popularity of the deck.
+
+```{r, include = T,warning = F, message = F, echo = FALSE}
+td = 
+  top_decks %>%
+  inner_join(all_decks, by = "deck_name") %>%
+  rename(deck_popularity = played, deck_type = type) %>%
+  mutate(popularity_level = round(deck_popularity/798*100, digit = 2)) %>%
+  arrange(-popularity_level) 
+
+
+# Decks with the number of different cards played between the top 20 
+top_in_decks = 
+  l %>% 
+  group_by(deck_name) %>%
+  summarise(top_cards_played = n_distinct(name)) %>% 
+  inner_join(td, by = "deck_name") 
+
+ggplot(top_in_decks, aes(x = popularity_level, y = top_cards_played)) + 
+  geom_point() + 
+  geom_smooth() +
+  theme_grey()
+
+```
+
+
+
+
+
+##  Which are the less played cards?
+
+There are 142 cards that figure out in a single copy in all the analyzed decks.
+
+```{r, include = T,warning = F, message = F, echo = FALSE, fig.align='center'}
+w1 = 
+  inner_join(card_list, worst_cards, by = "name") %>% 
+  select(name, deck_name)
+
+pic = ggdraw() + draw_image("./images/less.png", scale = 1)
+pic
+```
+
+## Communities of less used cards
+
+* There are 46 communities of single-copy-cards.
+* 12 of them are composed of a single elements: they are the single-copy-cards which are played with no others single-copy-cards.
+* **Enchantress** is the deck that uses the greatest number of single-copy-cards: 10.
+```{r, echo=FALSE, fig.align="center", fig.height=4.5}
+# There are 142 singleton cards
+n_worst_cards = nrow(w1)
+
+
+# Copy to obtain the links
+w2 = w1
+
+# Join to see which singletons are played together
+w3 = 
+  inner_join(w1, w2, by = "deck_name") %>% 
+  filter(name.x != name.y) %>%
+  rename(from = name.x, to = name.y) 
+
+w3 = w3[, c(1, 3, 2)]
+
+# Remove the "symmetric" duplicates
+w3[-3] = t(apply(w3[-3], 1, sort))
+w3 = unique(w3)
+
+
+
+
+# The graph of singleton cards
+singles_graph = tbl_graph(nodes = w1,
+                         edges = w3,
+                         directed = FALSE, 
+                         node_key = "name")
+
+deg = degree(singles_graph)
+
+singles_lay = layout_components(singles_graph)
+
+set_graph_style()
+singles_graph %>%
+  ggraph(layout = singles_lay) +
+  geom_edge_link(aes(color = deck_name)) + 
+  geom_node_point() 
+
+n_of_communities = clusters(singles_graph)$no
+```
+
+
+## How decks exploits single-copy-cards
+The tendency to play single-copy cards is more typical of less popular decks while top decks tend to maintain more standard lists.
+
+The fact that a very popular deck plays single-copy-cards, in the case of **4c Control** which plays 5, is given by the fact that the deck is widely played and therefore it is easier to find different lists.
+
+```{r, include = T,warning = F, message = F, echo = FALSE, fig.align='center', fig.height=4, fig.width=7}
+# Number of single-copy-cards played by each deck
+singles_per_deck = 
+  w1 %>%
+  group_by(deck_name) %>%
+  count(deck_name) %>%
+  inner_join(td, by = "deck_name") %>%
+  rename(single_copies = n)
+
+ggplot(singles_per_deck, aes(x = popularity_level, y = single_copies)) + 
+  geom_point() + 
+  theme_grey()
+
+#View(singles_per_deck)
+```
+
+
+
+
+## The signature cards
+
+The signature cards are cards that are played in a single deck but in any amount of copies. There are 579 signature cards but not all of them are interesting: in fact cards that are played in a deck which appear only once in the dataset are not so important.
+
+For this analysis I have considered only the most important signature cards: cards that are played in decks that appear at least twice and are played in average at least 3 copies per deck. For a total of 83 signature cards.
+```{r, echo=FALSE, fig.align="center"}
+pic2 = ggdraw() + draw_image("./images/signatures.png", scale = 1)
+pic2
+```
+
+
+```{r, include = T,warning = F, message = F, echo = FALSE}
+qnt = 
+  most_used_cards %>%
+  select(name, qnt)
+
+
+tl = 
+  total_list %>% 
+  select(name, deck_name)
+
+
+# Cards that are played in a single deck  
+tl1 =
+  unique(tl) %>%
+  count(name) %>%
+  filter(n == 1)
+
+
+tl2 = 
+  inner_join(tl1, tl, by = "name")
+
+tl2 = 
+  unique(tl2) %>%
+  select(-n) %>%
+  inner_join(qnt, by = "name")
+
+tl3 = 
+  inner_join(tl2, td, by = "deck_name") %>%
+  rename(copies_played = qnt) %>%
+  mutate(average_copies_per_deck = round(copies_played / deck_popularity, digit = 2))
+
+
+
+
+tl3 = unique(tl3)
+tl3 = tl3[, c(1, 2, 5, 3, 4, 6, 7)]
+
+
+
+s =
+  tl3 %>%
+  filter(deck_popularity > 2) %>%
+  filter(average_copies_per_deck >= 3.00) %>%
+  arrange(-average_copies_per_deck)
+```
+
+## Which decks use signature cards?
+
+The results shows that the use of signature cards in not driven by the popularity of decks but by their type, in fact it seems that it is a feature more proper of the **COMBO** decks. 
+
+
+```{r, include = T,warning = F, message = F, echo = FALSE}
+most_important_signatures = 
+  s %>%
+  group_by(deck_name) %>%
+  summarise(signature_cards_played = n_distinct(name)) %>%
+  inner_join(td, by = "deck_name") 
+#View(most_important_signatures)
+
+
+
+
+ggplot(most_important_signatures, aes(x = popularity_level, y = signature_cards_played)) +
+  geom_point(aes(color = deck_type, shape = deck_type)) + 
+  theme_gray()
+```
+
+
+
