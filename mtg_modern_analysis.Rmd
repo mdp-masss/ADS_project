@@ -2,7 +2,7 @@
 title: "Magic the Gathering"
 subtitle: "An analysis of the \"Modern\" metagame in April 2022"
 author: "Massimo del Prato"
-date: '2022-05-27'
+date: '27-06-2022'
 output:
   ioslides_presentation: 
     widescreen: true
@@ -266,14 +266,10 @@ Some interesting results:
 
 So the tendency is to be specialized in a single deck type.
 
+
 ## How specialized are the top players in terms of decks played?
 
-Speaking about the single decks, I have analyzed all the player with more than one result.
-
-The relation must be interpreted as: x has played the same deck as y.
-
-
-```{r, include = T,warning = F, message = F, echo = FALSE, fig.height=4}
+```{r, include = T,warning = F, message = F, echo = FALSE}
 bp_decks = 
   best_player_decks_1 %>%
   select(-deck_list, -type) 
@@ -321,7 +317,10 @@ ggraph(layout = deck_lay) +
 ```
 
 
-## How specialized are thr top players in terms of decks?
+## How specialized are the top players in terms of decks?
+Speaking about the single decks, I have analyzed all the player with more than one good result.
+
+The relation must be interpreted as: x has played the same deck as y.
 
 * There are only two players who have played three different decks: **Bosko_Milakovic** and **Ryan_Gassaway**
 * **Bosko_Milakovic** is not only the most versatile player but he's also the most creative one. In fact he has played three decks that none of the other best players have played.
@@ -482,10 +481,6 @@ ggplot(tc2, aes(x = qnt, y = name, fill = color_identity, width = 0.85)) +
 
 ## Correlation between the top 20 used cards
 
-How often the top cards are used together?
-
-It results that almost all the top cards are used together at least in one the deck.  The only exception is **Shardless Agent** which has non links with 9 of the other top cards.
- 
 ```{r, include = T,warning = F, message = F, echo = FALSE}
 card_list = 
   total_list %>%
@@ -556,6 +551,18 @@ c = centr_degree(card_graph)
 ```
 
 
+## Correlation between the top 20 used cards
+How often the top cards are used together?
+
+It results that almost all the top cards are used together at least in one the deck.  The only exception is **Shardless Agent** which has non links with 9 of the other top cards.
+
+```{r, echo=FALSE, fig.align="center"}
+pic2 = ggdraw() + draw_image("./images/shardless-agent.jpg", scale = 0.7)
+pic2
+```
+
+
+
 ## How decks exploit the top 20 cards
 
 Apparently the use of the top cards is bind to the popularity of the deck.
@@ -602,12 +609,8 @@ pic
 
 ## Communities of less used cards
 
-* There are 46 communities of single-copy-cards.
-* 12 of them are composed of a single elements: they are the single-copy-cards which are played with no others single-copy-cards.
-* **Enchantress** is the deck that uses the greatest number of single-copy-cards: 10.
 
-
-```{r, echo=FALSE, fig.align="center", fig.height=4.3}
+```{r, echo=FALSE, fig.align="center"}
 # There are 142 singleton cards
 n_worst_cards = nrow(w1)
 
@@ -650,6 +653,17 @@ n_of_communities = clusters(singles_graph)$no
 ```
 
 
+
+
+## Communities of less used cards
+
+* There are 46 communities of single-copy-cards.
+* 12 of them are composed of a single elements: they are the single-copy-cards which are played with no others single-copy-cards.
+* **Enchantress** is the deck that uses the greatest number of single-copy-cards: 10.
+
+
+
+
 ## How decks exploits single-copy-cards
 The tendency to play single-copy cards is more typical of less popular decks while top decks tend to maintain more standard lists.
 
@@ -680,7 +694,7 @@ The signature cards are cards that are played in a single deck but in any amount
 
 For this analysis I have considered only the most important signature cards: cards that are played in decks that appear at least twice and are played in average at least 3 copies per deck. For a total of 83 signature cards.
 ```{r, echo=FALSE, fig.align="center"}
-pic2 = ggdraw() + draw_image("./images/signatures.png", scale = 1)
+pic2 = ggdraw() + draw_image("./images/signatures.png", scale = 0.8)
 pic2
 ```
 
