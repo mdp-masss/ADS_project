@@ -118,10 +118,6 @@ ggplot(data = decks, mapping = aes(x = type, y = counts)) +
 
 ## Top 10 used decks
 
-Despite the most popular deck type, the most popular deck is **4c Control** of the the type **CONTROL** which is the less popular deck type. 
-
-Anyway more than the 40% of the 10 most played decks is an **AGGRO** deck.
-
 ```{r, include = T,warning = F, message = F, echo = FALSE}
 # Top 10 played decks
 
@@ -154,13 +150,20 @@ ggplot(top10, aes(x = "" , y = played, fill = fct_inorder(deck_name))) +
 
 ```
 
+## Top 10 used decks 
+
+Despite the most popular deck type, the most popular deck is **4c Control** of the the type **CONTROL** which is the less popular deck type. 
+
+Anyway more than the 40% of the 10 most played decks is an **AGGRO** deck.
+
 
 ##  Who are the best players?
 
-The best players are the players that figure out more than once in the dataframe. This is due to the fact that they have obtained a good result in more than a tournament in April. 
+The best players are the players that figure out more than once in the dataset. This is due to the fact that they have obtained a good result in more than a tournament in April. 
 
 Apparently it was not easy to get more than a good result in April, as a matter of fact only 59 players out of 729 got more than one good result. And of these 59 only 10 got three.
-```{r, include = T,warning = F, message = F, echo = FALSE}
+
+```{r, include = T,warning = F, message = F, echo = FALSE, fig.height=4}
 # Players and their number of results
 
 players = 
@@ -176,11 +179,6 @@ ggplot(data = players, aes(x = good_results)) +
 ```
 
 
-##  What do the best players play?
-
-Now let's move our focus to the players who have more than one result.
-
-What shown previously is confirmed: they generally prefer using **AGGRO** decks but the most popular deck is **4c CONTROL**
 
 ```{r, include = T,warning = F, message = F, echo = FALSE}
 # The best players: players who appear twice in the dataset
@@ -211,62 +209,53 @@ best_player_decks_2 =
   select(-n)
   
 
-ggplot(data = best_player_decks_1) + 
-  geom_bar(mapping = aes(x = type, fill = deck_name)) + 
-  theme_classic()
+#ggplot(data = best_player_decks_1) + 
+#  geom_bar(mapping = aes(x = type, fill = deck_name)) + 
+#  theme_classic()
 ```
 
 
 ## How specialized are the top players in terms of deck types?
 
-Here I have considered the 10 players with three results.
+In this section I have considered the 10 players with three results.
 
-The relation between players must be interpreted as follow: x has played the same deck type than y.
+What I wanted to find out is whether to be a good player it was possible to play different types of decks or whether it was better to specialize on one strategy.
+
+## How specialized are the top players in terms of deck types?
 
 ```{r, include = T,warning = F, message = F, echo = FALSE}
 # Deck types played by the best players
 bp_types = 
   best_player_decks_2 %>%
-  select(-deck_list, -deck_name) 
-  
-bpt1 = unique(bp_types)
+  select(-deck_list, -deck_name)
 
-# Copy to obtain the links
-bpt2 = bpt1
+bp_types = bp_types[, c(2, 1)]
 
-# Join to see when the top players plays the same deck type
-bpt3 = 
-  inner_join(bpt1, bpt2, by = "type") %>%
-  filter(player.x != player.y) %>%
-  rename(from = player.x, to = player.y)
+# Make a bipartite graph to show which type of deck do the best players play
+mbp = table(bp_types)
+ty_graph = graph.incidence(mbp, weighted = TRUE)
+#is.bipartite(ty_graph)
 
-# Remove the "symmetric" duplicate
-bpt3 = bpt3[, c(1, 3, 2)]
-bpt3[-3] = t(apply(bpt3[-3], 1, sort))
-bpt3 = unique(bpt3)
+#degree(ty_graph)
 
-
-# The graph
-player_graph = tbl_graph(nodes = best_players_2, 
-                         edges = bpt3,
-                         directed = FALSE, 
-                         node_key = "player")
-
-player_lay = layout_components(player_graph)
+ty_lay = layout_as_bipartite(ty_graph)
 
 set_graph_style()
-player_graph %>%
-  activate(nodes) %>%
-  mutate(degree = degree(player_graph)) %>%
-ggraph(layout = player_lay) +
-  geom_edge_link(aes(color = type)) + 
-  geom_node_point(aes(size = degree, alpha = degree)) + 
-  geom_node_text(aes(label = player), repel = TRUE)
+ty_graph %>%
+ggraph(layout = ty_lay) +
+  geom_node_point(aes(color = type, size = 4, shape = type),  show.legend = FALSE) + 
+  geom_edge_link(color = "grey") +
+  geom_node_text(aes(label = name), repel = TRUE,  nudge_x = ty_graph$data$x * 1, nudge_y = ty_graph$data$y * .1) + 
+  coord_flip()
 
-#degree(player_graph)
+
 ```
 
-## How specialized are thr top players in terms of deck types?
+
+
+
+
+## How specialized are the top players in terms of deck types?
 Some interesting results:
 
 
@@ -277,14 +266,14 @@ Some interesting results:
 
 So the tendency is to be specialized in a single deck type.
 
-## How specialized are thr top players in terms of decks?
+## How specialized are the top players in terms of decks played?
 
 Speaking about the single decks, I have analyzed all the player with more than one result.
 
-Again the relation must be interpreted as: x has played the same deck as y.
+The relation must be interpreted as: x has played the same deck as y.
 
 
-```{r, include = T,warning = F, message = F, echo = FALSE}
+```{r, include = T,warning = F, message = F, echo = FALSE, fig.height=4}
 bp_decks = 
   best_player_decks_1 %>%
   select(-deck_list, -type) 
@@ -447,7 +436,7 @@ tc$color_identity[tc$color_identity != "R" &
 
 
 ## Which are the most played cards?
-This graph shows the 20 most played non land cards; quite surprisingly there are no black cards between them. 
+This graph shows the 20 most played non land cards. Quite surprisingly there are no black cards between them. However, it was predictable because the most played deck (**4c Control**) uses all colors except black. 
 
 ```{r, include = T,warning = F, message = F, echo = FALSE}
 
@@ -470,7 +459,7 @@ ggplot(tc1, aes(x = qnt, y = name, fill = color_identity, width = 0.85)) +
 
 ## Which are the most played cards?
 
-To find the first black cards we must look at the 25th position: **Thoughtseize** , anyway it is the only one black card in the top 40. 
+To find the first black card we must look at the 25th position: **Thoughtseize** , anyway it is the only one black card in the top 40. 
 
 
 ```{r, include = T,warning = F, message = F, echo = FALSE}
@@ -616,7 +605,9 @@ pic
 * There are 46 communities of single-copy-cards.
 * 12 of them are composed of a single elements: they are the single-copy-cards which are played with no others single-copy-cards.
 * **Enchantress** is the deck that uses the greatest number of single-copy-cards: 10.
-```{r, echo=FALSE, fig.align="center", fig.height=4.5}
+
+
+```{r, echo=FALSE, fig.align="center", fig.height=4.3}
 # There are 142 singleton cards
 n_worst_cards = nrow(w1)
 
