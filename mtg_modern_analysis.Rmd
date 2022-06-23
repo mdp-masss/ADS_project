@@ -208,7 +208,7 @@ best_player_decks_2 =
   inner_join(df, by = "player") %>%
   select(-n)
   
-
+# Plot not used for the presentation
 #ggplot(data = best_player_decks_1) + 
 #  geom_bar(mapping = aes(x = type, fill = deck_name)) + 
 #  theme_classic()
